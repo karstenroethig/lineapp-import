@@ -1,89 +1,196 @@
 package karstenroethig.lineapp;
 
-import java.io.File;
-import java.io.RandomAccessFile;
-import java.util.ArrayList;
-import java.util.List;
+import karstenroethig.lineapp.model.DatabaseConfiguration;
+import karstenroethig.lineapp.model.Headline;
 
 import org.apache.commons.lang.StringUtils;
 
+import java.io.File;
+import java.io.FileFilter;
+
+import java.sql.Date;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+
+/**
+ * DOCUMENT ME!
+ *
+ * @author   $Author$
+ * @version  $Revision$, $Date$
+ */
 public class Importer {
 
-	/**
-	 * @param args
-	 */
-	public static void main(String[] args) throws Exception {
-		
-		File file = new File( "C:/temp/b_5aWw2w.doc.part" );
+    /**
+     * @param  args
+     */
+    public static void main( String[] args ) {
 
-        RandomAccessFile raf = new RandomAccessFile( file, "r" );
+        try {
 
-        List<String> lines = new ArrayList<String>();
-        boolean startRead = false;
-        String part = StringUtils.EMPTY;
+            run( args );
 
-        String angebot = StringUtils.EMPTY;
+        } catch( Exception ex ) {
 
-        for( String line; ( line = raf.readLine() ) != null; ) {
-            line = StringUtils.trim( line );
+            System.out.println(
+                "Bei der Ausführung der Anwendung ist folgender Fehler aufgetreten:" );
+            System.out.println( ex.getMessage() );
 
-            if( !startRead ) {
+        }
+    }
 
-                if( StringUtils.startsWith( line, "<body" ) ) {
-                    startRead = true;
-                }
-            } else {
+    /**
+     * DOCUMENT ME!
+     *
+     * @param   args  DOCUMENT ME!
+     *
+     * @throws  Exception  DOCUMENT ME!
+     */
+    private static void run( String[] args ) throws Exception {
 
-                if( StringUtils.equals( line, "<br>" ) ) {
+        /*
+         * Verzeichnis zum Suchen ermitteln
+         */
+        File searchDirectory = loadSearchDirectory( args );
 
-                    if( StringUtils.isNotBlank( part ) ) {
-                        lines.add( StringUtils.trim( StringUtils.replace( part, "<br>", "\n" ) ) );
-                        part = StringUtils.EMPTY;
+        /*
+         * Suche alle .eml-Dateien
+         */
+        Collection<File> headlineFiles = searchFiles( searchDirectory, ".eml" );
+
+        System.out.println( "Gefundene Dateien: " + headlineFiles.size() );
+
+        if( headlineFiles.isEmpty() ) {
+            return;
+        }
+
+        /*
+         * Daten aus gefundenen Dateien auslesen
+         */
+        List<Headline> headlines = new ArrayList<Headline>();
+        Set<Long> keys = new HashSet<Long>();
+        Date date = new Date( new java.util.Date().getTime() );
+
+        for( File file : headlineFiles ) {
+
+            try {
+                Headline headline = Headline.load( file );
+
+                if( headline != null ) {
+
+                    if( keys.contains( headline.getOfferNumber() ) ) {
+                        throw new Exception( "Die Headline mit dem Angebot " + headline.getOfferNumber()
+                            + " existiert bereits." );
                     }
-                } else {
 
-                    if( StringUtils.isNotBlank( part ) ) {
-                        part += " ";
-                    }
+                    headline.setRecordingDate( date );
+                    headline.setDateCreated( date );
+                    headline.setLastUpdated( date );
 
-                    part += line;
+                    headlines.add( headline );
                 }
 
-                if( StringUtils.startsWith( line, "Angebot" )
-                        && StringUtils.endsWith( line, "<br>" ) && ( line.length() == 17 ) ) {
-                    angebot = StringUtils.remove( StringUtils.remove( part, "Angebot " ), "<br>" );
-
-                    break;
-                }
+            } catch( Exception ex ) {
+                System.out.println( "Fehler beim Auslesen der Datei " + file.getAbsolutePath() );
+                System.out.println( "-> " + ex.getMessage() );
             }
         }
 
-        raf.close();
+        System.out.println( "Erfolgreich konvertierte Headlines: " + headlines.size() );
 
-        for( String line : lines ) {
-            System.out.println( line );
+        if( headlines.isEmpty() ) {
+            return;
         }
 
-        String location = StringUtils.EMPTY;
-        String bundesland = StringUtils.EMPTY;
-        String headline = StringUtils.EMPTY;
-        String subHeadline = StringUtils.EMPTY;
-        String body = StringUtils.EMPTY;
-        String scene = StringUtils.EMPTY;
-        List<String> scenes = new ArrayList<String>();
+        /*
+         * Datenbank-Konfiguration laden
+         */
+        DatabaseConfiguration dbconfig = DatabaseConfiguration.load( "dbconfig.properties" );
 
-        System.out.println( "Location: \"" + location + "\"" );
-        System.out.println( "Bundesland: \"" + bundesland + "\"" );
-        System.out.println( "Headline: \"" + headline + "\"" );
-        System.out.println( "Sub-Headline: \"" + subHeadline + "\"" );
-        System.out.println( "Body: \"" + body + "\"" );
-        System.out.println( "Angebot: \"" + angebot + "\"" );
+        /*
+         * Headlines in der Datenbank speichern
+         */
+        Headline.saveHeadlines( dbconfig, headlines );
 
-        for( int i = 0; i < scenes.size(); i++ ) {
-            String sc = scenes.get( i );
+        System.out.println( "Fertig." );
+    }
 
-            System.out.println( "Scene " + ( i + 1 ) + ": \"" + sc + "\"" );
+    /**
+     * DOCUMENT ME!
+     *
+     * @param   args  DOCUMENT ME!
+     *
+     * @return  DOCUMENT ME!
+     *
+     * @throws  Exception  DOCUMENT ME!
+     */
+    private static File loadSearchDirectory( String[] args ) throws Exception {
+
+        if( ( args == null ) || ( args.length < 1 ) ) {
+            System.out.println(
+                "Es wurde kein Verzeichnis als Parameter angegeben, deshalb wird das aktuelle Verzeichnis durchsucht." );
+
+            return new File( "." );
         }
-	}
+
+        File dir = new File( args[0] );
+
+        if( !dir.exists() ) {
+            throw new Exception( "Das angegebene Verzeichnis existiert nicht (Pfad: " + args[0]
+                + ")." );
+        }
+
+        if( !dir.isDirectory() ) {
+            throw new Exception( "Beim angegebenen Pfad handelt es sich um kein Verzeichnis (Pfad: "
+                + args[0] + ")." );
+        }
+
+        if( !dir.canRead() ) {
+            throw new Exception( "In dem angegebenen Verzeichnis kann nicht gelesen werden (Pfad: "
+                + args[0] + ")." );
+        }
+
+        return dir;
+    }
+
+    /**
+     * DOCUMENT ME!
+     *
+     * @param   searchDirectory  DOCUMENT ME!
+     * @param   ending           DOCUMENT ME!
+     *
+     * @return  DOCUMENT ME!
+     */
+    private static Collection<File> searchFiles( File searchDirectory, final String ending ) {
+
+        List<File> files = new ArrayList<File>();
+
+        File[] fileList = searchDirectory.listFiles( new FileFilter() {
+                    public boolean accept( File file ) {
+
+                        if( file.isDirectory() ) {
+                            return true;
+                        }
+
+                        return StringUtils.endsWithIgnoreCase( file.getName(), ending );
+                    }
+                } );
+
+        for( File file : fileList ) {
+
+            if( file.isDirectory() ) {
+                files.addAll( searchFiles( file, ending ) );
+            } else {
+                files.add( file );
+            }
+
+        }
+
+        return files;
+    }
 
 }
