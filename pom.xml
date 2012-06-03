@@ -4,7 +4,7 @@
 	<groupId>karstenroethig.lineapp</groupId>
 	<artifactId>lineapp-import</artifactId>
 	<packaging>jar</packaging>
-	<version>0.1.0-SNAPSHOT</version>
+	<version>1.0.0</version>
 	<name>(Head)LineApp :: Import</name>
 	<url>http://github.com/karstenroethig/lineapp-import</url>
 	<description>Java application for importing existing headlines form e-mails to the database of a lineapp instance</description>

@@ -6,8 +6,8 @@ A Java application for importing existing headlines form e-mails to the database
 
 Requirements
 ------------
-* Java SDK 1.5+ (for Grails 1.2 or greater)
-* Maven 2.x or 3.x (http://http://maven.apache.org)
+* Java SDK 1.5+
+* Maven 2.x or 3.x ([http://maven.apache.org](http://maven.apache.org))
 
 
 Build
